@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -27,7 +28,6 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -124,6 +124,7 @@ fun TimeSelectionMenu(onSettingsSelected: (ClockSettings) -> Unit, onOpenSavedGa
     var isCustomMode by remember { mutableStateOf(false) }
     var linkTimes by remember { mutableStateOf(true) }
     var hasIncrement by remember { mutableStateOf(false) }
+    var showAppExitDialog by remember { mutableStateOf(false) }
     
     var min1 by remember { mutableIntStateOf(5) }
     var sec1 by remember { mutableIntStateOf(0) }
@@ -131,8 +132,12 @@ fun TimeSelectionMenu(onSettingsSelected: (ClockSettings) -> Unit, onOpenSavedGa
     var sec2 by remember { mutableIntStateOf(0) }
     var incrementSec by remember { mutableIntStateOf(0) }
 
-    if (isCustomMode) {
-        BackHandler { isCustomMode = false }
+    BackHandler {
+        if (isCustomMode) {
+            isCustomMode = false
+        } else {
+            showAppExitDialog = true
+        }
     }
 
     Column(
@@ -181,15 +186,34 @@ fun TimeSelectionMenu(onSettingsSelected: (ClockSettings) -> Unit, onOpenSavedGa
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // Przycisk "Zapisane gry" zawsze widoczny na dole menu głównego
+            // Przycisk "Zapisane gry" oraz "Zamknij" przesunięte nieco wyżej
+            Spacer(modifier = Modifier.weight(0.3f))
+
             OutlinedButton(
                 onClick = onOpenSavedGames,
-                modifier = Modifier.fillMaxWidth(0.7f).padding(bottom = 16.dp),
+                modifier = Modifier.fillMaxWidth(0.7f).padding(vertical = 4.dp),
             ) {
                 Icon(Icons.Default.History, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Zapisane gry")
             }
+
+            OutlinedButton(
+                onClick = { showAppExitDialog = true },
+                modifier = Modifier
+                    .fillMaxWidth(0.7f)
+                    .padding(vertical = 4.dp),
+                border = BorderStroke(2.dp, MaterialTheme.colorScheme.error),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Zamknij aplikację")
+            }
+            
+            Spacer(modifier = Modifier.weight(0.2f))
         } else {
             Text("Ustawienia zaawansowane", fontSize = 20.sp, modifier = Modifier.padding(bottom = 16.dp))
 
@@ -245,6 +269,37 @@ fun TimeSelectionMenu(onSettingsSelected: (ClockSettings) -> Unit, onOpenSavedGa
                 }
             }
         }
+    }
+
+    if (showAppExitDialog) {
+        val activity = LocalContext.current as? android.app.Activity
+        AlertDialog(
+            onDismissRequest = { showAppExitDialog = false },
+            containerColor = Color.LightGray,
+            title = { Text("Zamknij aplikację", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+            text = { Text("Czy na pewno chcesz zamknąć aplikację?", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+            confirmButton = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = { activity?.finish() },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Blue, contentColor = Color.White)
+                    ) {
+                        Text("Tak")
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Button(
+                        onClick = { showAppExitDialog = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Gray, contentColor = Color.White)
+                    ) {
+                        Text("Anuluj")
+                    }
+                }
+            }
+        )
     }
 }
 
@@ -343,42 +398,73 @@ fun ChessClockScreen(
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { Text("Wyjście z gry") },
+            containerColor = Color.LightGray,
+            title = { Text("Wyjście z gry", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
             text = { 
-                Column {
-                    Text("Czy na pewno chcesz wyjść? Możesz zapisać stan gry.")
-                    Spacer(Modifier.height(8.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Czy na pewno chcesz wyjść? Możesz zapisać stan gry.", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Spacer(Modifier.height(16.dp))
                     OutlinedTextField(
                         value = gameName,
                         onValueChange = { gameName = it },
                         label = { Text("Nazwa zapisu") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
+                        )
                     )
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    onSaveAndExit(
-                        GameState(
-                            id = savedState?.id ?: java.util.UUID.randomUUID().toString(),
-                            name = gameName.ifBlank { "Gra ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}" },
-                            timeLeft1 = timeLeft1,
-                            timeLeft2 = timeLeft2,
-                            moveCount1 = moveCount1,
-                            moveCount2 = moveCount2,
-                            activePlayer = activePlayer,
-                            player1Color = player1Color,
-                            player2Color = player2Color,
-                            initialSettings = initialSettings
-                        )
-                    )
-                }) { Text("Zapisz i wyjdź") }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = onBack) { Text("Wyjdź bez zapisu", color = MaterialTheme.colorScheme.error) }
-                    TextButton(onClick = { showExitDialog = false }) { Text("Anuluj") }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = {
+                            onSaveAndExit(
+                                GameState(
+                                    id = savedState?.id ?: java.util.UUID.randomUUID().toString(),
+                                    name = gameName.ifBlank { "Gra ${java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date())}" },
+                                    timeLeft1 = timeLeft1,
+                                    timeLeft2 = timeLeft2,
+                                    moveCount1 = moveCount1,
+                                    moveCount2 = moveCount2,
+                                    activePlayer = activePlayer,
+                                    player1Color = player1Color,
+                                    player2Color = player2Color,
+                                    initialSettings = initialSettings
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Zapisz i wyjdź")
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Button(
+                            onClick = onBack,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Red, contentColor = Color.White)
+                        ) {
+                            Text("Wyjdź bez zapisu", fontSize = 12.sp)
+                        }
+                        
+                        Spacer(Modifier.width(8.dp))
+                        
+                        Button(
+                            onClick = { showExitDialog = false },
+                            modifier = Modifier.weight(0.6f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Blue, contentColor = Color.White)
+                        ) {
+                            Text("Anuluj", fontSize = 12.sp)
+                        }
+                    }
                 }
             }
         )
@@ -387,24 +473,44 @@ fun ChessClockScreen(
     if (showResetDialog) {
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
-            title = { Text("Reset zegara") },
-            text = { Text("Czy na pewno chcesz zresetować zegar?") },
+            containerColor = Color.LightGray,
+            title = { Text("Reset zegara", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+            text = { Text("Czy na pewno chcesz zresetować zegar?", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
             confirmButton = {
-                TextButton(onClick = {
-                    timeLeft1 = initialSettings.time1Millis
-                    timeLeft2 = initialSettings.time2Millis
-                    moveCount1 = 0; moveCount2 = 0
-                    activePlayer = null; isPaused = true
-                    player1Color = Color.Blue; player2Color = Color.Blue
-                    showResetDialog = false
-                }) { Text("Tak") }
-            },
-            dismissButton = { TextButton(onClick = { showResetDialog = false }) { Text("Anuluj") } }
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Button(
+                        onClick = {
+                            timeLeft1 = initialSettings.time1Millis
+                            timeLeft2 = initialSettings.time2Millis
+                            moveCount1 = 0; moveCount2 = 0
+                            activePlayer = null; isPaused = true
+                            player1Color = Color.Blue; player2Color = Color.Blue
+                            showResetDialog = false
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Blue, contentColor = Color.White)
+                    ) {
+                        Text("Tak")
+                    }
+                    
+                    Spacer(Modifier.height(8.dp))
+                    
+                    Button(
+                        onClick = { showResetDialog = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Gray, contentColor = Color.White)
+                    ) {
+                        Text("Anuluj")
+                    }
+                }
+            }
         )
     }
 
-    LaunchedEffect(activePlayer, isPaused) {
-        while (activePlayer != null && !isPaused) {
+    val isAnyDialogOpen = showResetDialog || showExitDialog
+
+    LaunchedEffect(activePlayer, isPaused, isAnyDialogOpen) {
+        while (activePlayer != null && !isPaused && !isAnyDialogOpen) {
             delay(100)
             if (activePlayer == 1) {
                 timeLeft1 = (timeLeft1 - 100).coerceAtLeast(0)
@@ -419,6 +525,7 @@ fun ChessClockScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         ClockButton(
             timeMillis = timeLeft2, moveCount = moveCount2, backgroundColor = player2Color, isActive = activePlayer == 2,
+            enabled = !isAnyDialogOpen,
             onClick = {
                 if (activePlayer == null) {
                     player2Color = Color.White; player1Color = Color.Black
@@ -440,17 +547,18 @@ fun ChessClockScreen(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { showExitDialog = true }) { Icon(Icons.Default.Home, null, tint = Color.White) }
-            IconButton(onClick = { isPaused = !isPaused }, enabled = activePlayer != null) {
-                Icon(if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause, null, tint = if (activePlayer != null) Color.White else Color.Gray)
+            IconButton(onClick = { showExitDialog = true }, enabled = !isAnyDialogOpen) { Icon(Icons.Default.Home, null, tint = if (!isAnyDialogOpen) Color.White else Color.Gray) }
+            IconButton(onClick = { isPaused = !isPaused }, enabled = activePlayer != null && !isAnyDialogOpen) {
+                Icon(if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause, null, tint = if (activePlayer != null && !isAnyDialogOpen) Color.White else Color.Gray)
             }
-            IconButton(onClick = { showResetDialog = true }, enabled = player1Color != Color.Blue) {
-                Icon(Icons.Default.Refresh, null, tint = if (player1Color != Color.Blue) Color.White else Color.Gray)
+            IconButton(onClick = { showResetDialog = true }, enabled = player1Color != Color.Blue && !isAnyDialogOpen) {
+                Icon(Icons.Default.Refresh, null, tint = if (player1Color != Color.Blue && !isAnyDialogOpen) Color.White else Color.Gray)
             }
         }
 
         ClockButton(
             timeMillis = timeLeft1, moveCount = moveCount1, backgroundColor = player1Color, isActive = activePlayer == 1,
+            enabled = !isAnyDialogOpen,
             onClick = {
                 if (activePlayer == null) {
                     player1Color = Color.White; player2Color = Color.Black
@@ -470,9 +578,14 @@ fun ChessClockScreen(
 }
 
 @Composable
-fun ClockButton(timeMillis: Long, moveCount: Int, backgroundColor: Color, isActive: Boolean, onClick: () -> Unit, modifier: Modifier) {
+fun ClockButton(timeMillis: Long, moveCount: Int, backgroundColor: Color, isActive: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier) {
     val contentColor = if (backgroundColor == Color.White) Color.Black else Color.White
-    Surface(onClick = onClick, color = backgroundColor, modifier = modifier.fillMaxWidth().then(if (isActive) Modifier.border(8.dp, Color.Red) else Modifier)) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        color = backgroundColor,
+        modifier = modifier.fillMaxWidth().then(if (isActive) Modifier.border(8.dp, Color.Red) else Modifier)
+    ) {
         Box(modifier = Modifier.fillMaxSize().padding(16.dp)) {
             Text("Ruchy: $moveCount", fontSize = 20.sp, color = contentColor, modifier = Modifier.align(Alignment.TopEnd))
             Text(formatTime(timeMillis), fontSize = 72.sp, color = contentColor, modifier = Modifier.align(Alignment.Center))
